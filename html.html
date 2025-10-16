@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>¿Me amas?</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Quicksand", sans-serif;
+    }
+
+    body {
+      background-color: #ee97b4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .contenedor {
+      text-align: center;
+      position: relative;
+      width: 95%;
+      height: 70%;
+      max-width: 450px; /* 🔹 más grande */
+      background-color: #ffdbe7;
+      padding: 30px 25px; /* 🔹 más espacio interno */
+      border-radius: 25px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+      
+    }
+
+    .imagen {
+      margin-bottom: 20px;
+    }
+
+    .imagen img {
+      width: 160px; /* 🔹 un poco más grande */
+      border-radius: 15px;
+    }
+
+    h2 {
+      font-size: 1.7rem;
+      color: #333;
+      margin-bottom: 30px;
+    }
+
+    .botones {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 35px;
+      height: 45px;
+    }
+
+    button {
+      padding: 8px 22px;
+      border: none;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      color: white;
+      background-color: #ff7ea8;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      position: relative;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    #noBtn {
+      position: absolute;
+      z-index: 9999 !important; /* 🔹 siempre por encima de todo */
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor" id="contenedor">
+    <div class="imagen">
+      <!-- 🔸 Aquí puedes poner tu propia imagen -->
+      <img src="osito.gif" alt="Ositos tiernos" />
+    </div>
+    <h2>¿Tu Me Amas Ali?</h2>
+    <div class="botones">
+      <button id="yesBtn">Sí 💖</button>
+      <button id="noBtn">No 😢</button>
+    </div>
+  </div>
+
+  <script>
+    const noBtn = document.getElementById("noBtn");
+    const yesBtn = document.getElementById("yesBtn");
+    const contenedor = document.getElementById("contenedor");
+
+    function moverBoton() {
+      const contRect = contenedor.getBoundingClientRect();
+      const maxX = contRect.width - noBtn.offsetWidth - 10;
+      const maxY = contRect.height - noBtn.offsetHeight - 10;
+
+      let movimientos = 3;
+      const mover = setInterval(() => {
+        const newX = Math.random() * maxX - maxX / 2;
+        const newY = Math.random() * maxY - maxY / 2;
+        noBtn.style.transform = `translate(${newX}px, ${newY}px)`;
+        movimientos--;
+        if (movimientos <= 0) clearInterval(mover);
+      }, 200);
+    }
+
+    noBtn.addEventListener("click", moverBoton);
+    noBtn.addEventListener("touchstart", moverBoton);
+
+    yesBtn.addEventListener("click", () => {
+      contenedor.innerHTML = `
+        <img src="ositos.gif" alt="Ositos felices" width="160">
+        <h2 style="color:#ff7ea8;margin-top:20px;">¡Yo también te amo! 💞</h2>
+      `;
+    });
+  </script>
+</body>
+</html>
