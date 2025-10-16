@@ -25,13 +25,13 @@
       text-align: center;
       position: relative;
       width: 95%;
-      height: 70%;
-      max-width: 450px; /* 🔹 más grande */
+      height: 80%;
+      max-width: 450px;
       background-color: #ffdbe7;
-      padding: 30px 25px; /* 🔹 más espacio interno */
+      padding: 30px 25px;
       border-radius: 25px;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-      
+      overflow: hidden;
     }
 
     .imagen {
@@ -39,14 +39,34 @@
     }
 
     .imagen img {
-      width: 160px; /* 🔹 un poco más grande */
+      width: 160px;
       border-radius: 15px;
     }
 
     h2 {
-      font-size: 1.7rem;
+      font-size: 1.5rem;
+      color: #ff7ea8;
+      margin-bottom: 20px;
+    }
+
+    p {
+      font-size: 1rem;
       color: #333;
-      margin-bottom: 30px;
+      line-height: 1.5;
+      text-align: justify;
+      white-space: pre-line;
+    }
+
+    .texto-scroll {
+      max-height: 300px; /* Altura máxima para activar scroll */
+      overflow-y: auto;
+      padding-right: 8px;
+      -webkit-overflow-scrolling: touch; /* Scroll suave en móviles */
+      scrollbar-width: none; /* Oculta scroll en navegadores modernos */
+    }
+
+    .texto-scroll::-webkit-scrollbar {
+      display: none; /* Oculta scroll en navegadores WebKit (como Chrome o Safari móvil) */
     }
 
     .botones {
@@ -76,14 +96,13 @@
 
     #noBtn {
       position: absolute;
-      z-index: 9999 !important; /* 🔹 siempre por encima de todo */
+      z-index: 9999 !important;
     }
   </style>
 </head>
 <body>
   <div class="contenedor" id="contenedor">
     <div class="imagen">
-      <!-- 🔸 Aquí puedes poner tu propia imagen -->
       <img src="osito.gif" alt="Ositos tiernos" />
     </div>
     <h2>¿Tu Me Amas Ali?</h2>
@@ -118,10 +137,64 @@
 
     yesBtn.addEventListener("click", () => {
       contenedor.innerHTML = `
-        <img src="ositos.gif" alt="Ositos felices" width="160">
+        <div class="imagen">
+          <img src="ositos.gif" alt="Ositos felices" width="160">
+        </div>
         <h2 style="color:#ff7ea8;margin-top:20px;">¡Yo también te amo! 💞</h2>
+        <button id="nextBtn" style="margin-top:25px;">Continuar ➜</button>
       `;
+
+      document.getElementById("nextBtn").addEventListener("click", mostrarPagina2);
     });
+
+    function mostrarPagina2() {
+      contenedor.innerHTML = `
+        <div class="imagen">
+          <img src="amor.gif" alt="Imagen especial" width="160">
+        </div>
+        <h2>¿Recuerdas aquel día en que nos conocimos?</h2>
+        <div class="texto-scroll">
+          <p>
+
+La verdad, no recordarlo sería negar lo maravilloso que me esperaba estando a tu lado.
+Sé que han surgido problemas e inconformidades, pero ¿quién dijo que sería fácil?
+Los verdaderos lazos se construyen y se forman, y yo quiero formar una vida contigo, claro, si me lo permites.
+
+Gracias por estar ahí cuando más lo necesité, gracias por hacerme reír, gracias por alegrar mi día cuando mi estrés y mis pensamientos más pesimistas se presentaban.
+La idea de ti no es solo una idea, es una afirmación, porque antes de verte con los ojos, te veo con el corazón y con la mente.
+Y el sentir cada gesto bueno que viene de ti reafirma lo que realmente quiero, y lo que quiero es estar contigo.
+
+Espero ser siempre esa persona que admiras y que amas, porque yo te amo a ti.
+Gracias por este día tan especial para mí.
+No pensé que llegaría a pasar, no pensé que esto sería real.
+No creí que desde mi negación surgiera tal emoción para unirme a ti,
+para no solo referirme a mí como “yo”, sino como “nosotros”.
+
+Soy y seré porque tú estás.
+Soy y seré porque somos.
+Y somos más que individuos divididos con sus propias necesidades:
+somos una especie de unión, porque con el paso del tiempo nos adaptamos al otro,
+no como sinónimo de vulnerabilidad ni de sumisión,
+sino porque realmente nuestras mentes, pensamientos, sueños y almas se buscan,
+y al encontrarse, se sienten en paz.
+
+No hay circunstancia, acción o fenómeno que pueda arruinar esa conexión.
+Desde lo psicológico, lo físico y lo espiritual, mi esencia se esfuerza en encontrarte,
+en compartir más tiempo con la persona que amo.
+
+Disculpa si mi interpretación está sujeta a mi manera de pensar,
+pero tales sentimientos emanan de mí.
+A veces, el simple “te amo” se vuelve insuficiente, carente de expresión,
+cada vez que se utiliza como justificación para la falta de voluntad hacia el otro.
+Por eso, mi amor por ti significa más que palabras:
+es una combinación pura entre dar y aclarar el sentir.
+
+Porque mi corazón habla, pero mi mente actúa,
+y por ello, mi amor es expresado y dado hacia ti simultáneamente.Te amo y te amare por siempre ❤️
+          </p>
+        </div>
+      `;
+    }
   </script>
 </body>
 </html>
