@@ -808,7 +808,7 @@
     <span class="tn-title b" id="tnB">Galaxia</span>
   </div>
 </nav>
-<div class="gal-page" id="galBox" aria-hidden="true"><canvas id="galCanvas"></canvas><div class="gal-hint" id="galHint">Doble toque para explorar</div></div>
+<div class="gal-page" id="galBox" aria-hidden="true"><canvas id="galCanvas"></canvas><div class="gal-hint" id="galHint">Toca una galaxia para explorarla</div></div>
 
 <div class="wrap">
 
@@ -3162,24 +3162,27 @@
     const box = document.getElementById('galBox'), cv = document.getElementById('galCanvas'), hint = document.getElementById('galHint');
     const ctx = cv.getContext('2d');
     const D = 520, F = 420, PITCH0 = -0.38;
+    // Cámara LIBRE: M = rotación mundo→cámara (3x3, por filas). Gira en los 3 ejes sin límites; (camX,camY,camZ) = punto al que mira (se puede mover)
+    let M = [1,0,0, 0,Math.cos(PITCH0),-Math.sin(PITCH0), 0,Math.sin(PITCH0),Math.cos(PITCH0)];
     let Z0 = 1, ZMIN = .7, ZMAX = 5; // se calculan en resize() para que el corazón completo quepa en pantalla
     let W = 0, H = 0, dpr = 1, K = 1, running = false, raf = 0, last = 0, ro = null;
-    let yaw = 0, vYaw = 0.0022, pitch = PITCH0, vPitch = 0, spin = 0, phase = 0, clock = 0;
-    let zoom = 1, tz = 1, resetting = false, spritesBuilt = false, sized = false;
+    let spin = 0, phase = 0, clock = 0;
+    let zoom = 1, tz = 1, spritesBuilt = false, sized = false;
     let skip = 1, frames = 0, acc = 0, built = false, interactive = false, hintTm = 0;
-    let focus = -1, wF = 0, camX = 0, camY = 0, camZ = 0, drawT = 0, lastWheel = 0;
-    const gal = [], stars = [], trail = [], sprites = [];
+    let camX = 0, camY = 0, camZ = 0, drawT = 0;
+    const gal = [], dust = [], stars = [], trail = [], sprites = [];
+    let DN = 0, dR, dCa, dSa, dY, dGi, dK; const kCol = [], kAl = [];
 
     // Forma del corazón: las 3 galaxias están SOBRE su contorno (ali y axel arriba, nosotros en la punta de abajo)
-    const GR = 60, HS = 10, YOFF = -26, TL = 1.1; // radio de galaxia, escala del corazón, ajuste vertical, punto del contorno donde van ali/axel
+    const GR = 50, HS = 11, YOFF = -32, TL = 1.1; // radio de galaxia, escala del corazón, ajuste vertical, punto del contorno donde van ali/axel
     const hx = t => 16 * Math.pow(Math.sin(t), 3) * HS;
     const hy = t => -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t)) * HS + YOFF;
     const GN = [
-      { x: hx(-TL),    y: hy(-TL),    z: 0, tilt: -.95, dir:  1, glow:'255,170,215', sx:0, sy:0 }, // 0 = ali (arriba izquierda, rosa)
-      { x: hx(TL),     y: hy(TL),     z: 0, tilt: -1.05, dir: -1, glow:'150,200,255', sx:0, sy:0 }, // 1 = axel (arriba derecha, azul)
-      { x: hx(Math.PI), y: hy(Math.PI), z: 0, tilt: -1.0, dir:  1, glow:'255,215,150', sx:0, sy:0 }  // 2 = nosotros (abajo, dorado)
+      { x: hx(-TL),    y: hy(-TL),    z: 0, tilt: -.3, roll: -.3, dir:  1, glow:'255,170,215', sx:0, sy:0 }, // 0 = ali (arriba izquierda, rosa)
+      { x: hx(TL),     y: hy(TL),     z: 0, tilt: -.22, roll: .3, dir: -1, glow:'150,200,255', sx:0, sy:0 }, // 1 = axel (arriba derecha, azul)
+      { x: hx(Math.PI), y: hy(Math.PI), z: 0, tilt: -.4, roll: 0, dir:  1, glow:'255,215,150', sx:0, sy:0 }  // 2 = nosotros (abajo, dorado)
     ];
-    GN.forEach(G=>{ G.c = Math.cos(G.tilt); G.s = Math.sin(G.tilt); });
+    GN.forEach(G=>{ G.c = Math.cos(G.tilt); G.s = Math.sin(G.tilt); G.rc = Math.cos(G.roll); G.rs = Math.sin(G.roll); G.sr = 0; });
     const PALS = [
       ['rgba(255,244,214,.95)','rgba(255,170,210,.9)','rgba(255,120,185,.85)','rgba(235,110,200,.8)','rgba(190,120,255,.75)'],
       ['rgba(235,245,255,.95)','rgba(140,200,255,.9)','rgba(100,160,255,.85)','rgba(130,130,255,.8)','rgba(170,120,255,.75)'],
@@ -3195,12 +3198,13 @@
     // posición en el mundo de un punto (radio r, altura y, ángulo ang) del disco de la galaxia gi
     function place(gi, r, y, ang){
       const G = GN[gi], lx = Math.cos(ang) * r, lz = Math.sin(ang) * r;
-      gx = G.x + lx; gy = G.y + y * G.c - lz * G.s; gz = G.z + y * G.s + lz * G.c;
+      const y1 = y * G.c - lz * G.s, z1 = y * G.s + lz * G.c; // inclinación del disco
+      gx = G.x + lx * G.rc - y1 * G.rs; gy = G.y + lx * G.rs + y1 * G.rc; gz = G.z + z1; // y giro en pantalla
     }
 
     function build(){
       if(built) return; built = true;
-      const NG = weak ? 520 : 1000, NT = weak ? 650 : 1000, NS = weak ? 160 : 280, f = GR / 200;
+      const NG = weak ? 300 : 450, NT = weak ? 650 : 1000, NS = weak ? 160 : 280, f = GR / 200;
       for(let gi=0; gi<3; gi++){
         const dir = GN[gi].dir;
         for(let i=0;i<NG;i++){
@@ -3211,6 +3215,25 @@
         }
       }
       gal.sort((p,q)=>p.k-q.k);
+      // Polvo fino de la galaxia (miles de puntitos de 1-2 px): brazos espesos + núcleo brillante + neblina entre brazos
+      const ND = weak ? 1000 : 1800, AL = [.28, .46, .7];
+      for(let gi=0; gi<3; gi++){
+        const dir = GN[gi].dir;
+        for(let i=0;i<ND;i++){
+          const kind = Math.random(); let r0, a;
+          if(kind < .68){ r0 = Math.pow(Math.random(), .75) * 205 + 3; a = r0 * .034 + (i % 3) * 2.0944 + gauss() * (.48 * (1 - r0/240) + .07); }
+          else if(kind < .86){ r0 = Math.abs(gauss()) * 38 + 2; a = Math.random() * 6.2832; }
+          else { r0 = Math.pow(Math.random(), .7) * 215 + 4; a = Math.random() * 6.2832; }
+          const g = r0 < 40 ? 0 : r0 < 95 ? 1 + (Math.random()<.4?1:0) : r0 < 150 ? 2 + (Math.random()<.5?1:0) : 3 + (Math.random()<.5?1:0);
+          const ab = r0 < 45 ? (Math.random() < .55 ? 2 : 1) : (Math.random() < .5 ? 0 : (Math.random() < .7 ? 1 : 2));
+          const yy = gauss() * (r0 < 40 ? 14 : 10 * (1 - r0/230) + 2) * f * 1.4;
+          dust.push({ gi, r: r0 * f, ca: Math.cos(a * dir), sa: Math.sin(a * dir), y: yy, k: (gi * 5 + g) * 3 + ab, col: PALS[gi][g], al: AL[ab] });
+        }
+      }
+      dust.sort((p,q)=>p.k-q.k);
+      DN = dust.length; dR = new Float32Array(DN); dCa = new Float32Array(DN); dSa = new Float32Array(DN); dY = new Float32Array(DN); dGi = new Uint8Array(DN); dK = new Uint8Array(DN);
+      dust.forEach((p, i)=>{ dR[i] = p.r; dCa[i] = p.ca; dSa[i] = p.sa; dY[i] = p.y; dGi[i] = p.gi; dK[i] = p.k; kCol[p.k] = p.col; kAl[p.k] = p.al; });
+      dust.length = 0;
       for(let i=0;i<NS;i++) stars.push({ x:(Math.random()-.5)*900, y:(Math.random()-.5)*700, z:(Math.random()-.5)*900, s:Math.random()*1.1+.4, a:Math.random()*.6+.25 });
       // Contorno del corazón hecho de piedritas / mini meteoritos. u = 0 en la punta de abajo (nosotros) y sube por ali, la hendidura, axel y vuelve a nosotros
       for(let i=0;i<NT;i++){
@@ -3223,10 +3246,17 @@
     // Imágenes (de la carpeta del repositorio) y frases repartidas alrededor de cada galaxia
     function prepImg(sp, img){
       try{
-        const c = document.createElement('canvas'); c.width = c.height = 192;
-        const m = Math.min(img.naturalWidth, img.naturalHeight) || 1;
-        c.getContext('2d').drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, 192, 192);
-        sp.bmp = c; sp.ok = true;
+        const N = 224, rr = N * .16, c = document.createElement('canvas'); c.width = c.height = N;
+        const m = Math.min(img.naturalWidth, img.naturalHeight) || 1, x = c.getContext('2d');
+        const path = ()=>{ x.beginPath(); if(x.roundRect) x.roundRect(0, 0, N, N, rr); else x.rect(0, 0, N, N); };
+        x.save(); path(); x.clip();
+        x.drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, N, N);
+        x.restore();
+        x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 3; x.beginPath();
+        if(x.roundRect) x.roundRect(1.5, 1.5, N - 3, N - 3, rr); else x.rect(1.5, 1.5, N - 3, N - 3);
+        x.stroke();
+        const c2 = document.createElement('canvas'); c2.width = c2.height = 96; const x2 = c2.getContext('2d'); x2.imageSmoothingQuality = 'high'; x2.drawImage(c, 0, 0, 96, 96);
+        sp.bmp = c; sp.bmp2 = c2; sp.ok = true;
       }catch(e){ sp.bad = true; }
     }
     // Las fotos se cargan poco a poco (6 a la vez) para no saturar el teléfono
@@ -3261,6 +3291,22 @@
           sp.ph = Math.random() * 6.28; sp.sz = sp.kind==='img' ? 38 + Math.random()*14 : 12 + Math.random()*4;
         });
       });
+      // Fotos MINÚSCULAS dentro de los cuadritos de los brazos: cada una se pega a una partícula de su galaxia (y gira con ella)
+      for(let gi=0; gi<3; gi++){
+        const imgs = sprites.filter(q=>q.kind==='img' && q.gi===gi), cand = [];
+        gal.forEach((p, i)=>{ if(p.gi===gi && p.r > 4) cand.push(i); });
+        for(let i=cand.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [cand[i], cand[j]] = [cand[j], cand[i]]; }
+        const used = [];
+        imgs.forEach(q=>{
+          let pick = -1;
+          for(const ci of cand){
+            const p = gal[ci], x = p.r * Math.cos(p.a), z = p.r * Math.sin(p.a);
+            if(used.every(u=>Math.hypot(u.x - x, u.z - z) > 5.2)){ pick = ci; used.push({ x, z }); break; }
+          }
+          if(pick < 0) pick = cand[Math.floor(Math.random() * cand.length)];
+          q.pi = pick; q.wsz = 3.4 + Math.random() * .8; // tamaño en unidades del mundo (muy pequeña)
+        });
+      }
       pump();
     }
 
@@ -3271,23 +3317,59 @@
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // zoom inicial: que quepa todo el corazón (3 galaxias) en pantalla
-      const fit = Math.min(.9 * (W/2) / (180 * F/D * K), .9 * (H/2) / (210 * F/D * K));
+      const fit = Math.min(.9 * (W/2) / (190 * F/D * K), .9 * (H/2) / (215 * F/D * K));
       const first = !sized || tz === Z0;
-      Z0 = fit; ZMIN = fit * .7; ZMAX = fit * 5;
+      Z0 = fit; ZMIN = fit * .35; ZMAX = fit * 9;
       if(first){ zoom = tz = Z0; }
       sized = true;
     }
 
-    // proyección: deja el resultado en px, py, pp, pz (la cámara gira alrededor del punto cam)
+    // helpers de la cámara libre
+    const M0 = M.slice();
+    function resetView(){ M = M0.slice(); camX = camY = camZ = 0; tz = zoom = Z0; }
+    // gira la cámara 'a' radianes sobre un eje de la PANTALLA (0 = horizontal, 1 = vertical, 2 = el que sale de la pantalla / rodar)
+    function rot(ax, a){
+      const c = Math.cos(a), s_ = Math.sin(a), o = M;
+      const r = ax === 0 ? [1,0,0, 0,c,-s_, 0,s_,c] : ax === 1 ? [c,0,s_, 0,1,0, -s_,0,c] : [c,-s_,0, s_,c,0, 0,0,1];
+      const n = new Array(9);
+      for(let i=0;i<3;i++) for(let j=0;j<3;j++) n[i*3+j] = r[i*3]*o[j] + r[i*3+1]*o[3+j] + r[i*3+2]*o[6+j];
+      // re-ortonormalizar para que no se deforme con el tiempo
+      let l = Math.hypot(n[0],n[1],n[2]); n[0]/=l; n[1]/=l; n[2]/=l;
+      const d = n[3]*n[0] + n[4]*n[1] + n[5]*n[2]; n[3]-=d*n[0]; n[4]-=d*n[1]; n[5]-=d*n[2];
+      l = Math.hypot(n[3],n[4],n[5]); n[3]/=l; n[4]/=l; n[5]/=l;
+      n[6] = n[1]*n[5] - n[2]*n[4]; n[7] = n[2]*n[3] - n[0]*n[5]; n[8] = n[0]*n[4] - n[1]*n[3];
+      M = n;
+    }
+    // mueve el punto de vista en el plano de la pantalla (arriba/abajo/izquierda/derecha respecto a como estés mirando)
+    function pan(dx, dy){
+      const k = 1 / (F / D * K * zoom);
+      camX -= (M[0]*dx + M[3]*dy) * k; camY -= (M[1]*dx + M[4]*dy) * k; camZ -= (M[2]*dx + M[5]*dy) * k;
+      const C = focused >= 0 ? GN[focused] : { x:0, y:0, z:0 }, ox = camX - C.x, oy = camY - C.y, oz = camZ - C.z;
+      const L = Math.hypot(ox, oy, oz), LM = 140; if(L > LM){ const f = LM / L; camX = C.x + ox * f; camY = C.y + oy * f; camZ = C.z + oz * f; }
+    }
+
+    // proyección: deja el resultado en px, py, pp, pz (la cámara mira al punto cam con la rotación M)
     let px = 0, py = 0, pp = 1, pz = 0;
-    function proj(x, y, z, cy, sy, cp, sp){
+    function proj(x, y, z){
       x -= camX; y -= camY; z -= camZ;
-      const x1 = x*cy + z*sy, z1 = -x*sy + z*cy;
-      const y2 = y*cp - z1*sp, z2 = y*sp + z1*cp;
+      const x1 = M[0]*x + M[1]*y + M[2]*z, y2 = M[3]*x + M[4]*y + M[5]*z, z2 = M[6]*x + M[7]*y + M[8]*z;
       const d = D + z2; if(d < 70) return false;
       pp = F / d * K * zoom; pz = z2;
       px = W/2 + x1 * pp; py = H*.5 + y2 * pp;
       return true;
+    }
+
+    // puntito redondo y suave (se dibuja como imagen precalculada: barato y bonito)
+    const dotCache = {};
+    function dotSprite(col){
+      let c = dotCache[col]; if(c) return c;
+      c = document.createElement('canvas'); c.width = c.height = 32;
+      const x = c.getContext('2d'); x.fillStyle = col; x.fillRect(0, 0, 32, 32);
+      x.globalCompositeOperation = 'destination-in';
+      const g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.4, 'rgba(0,0,0,.92)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(0, 0, 32, 32);
+      return dotCache[col] = c;
     }
 
     function frame(now){
@@ -3296,51 +3378,65 @@
       const dt = Math.min(.05, (now - (last || now)) / 1000); last = now;
       if(!W){ resize(); if(!W) return; }
       frames++; acc += dt;
-      if(frames === 45){ if(acc/45 > .03 && skip < 3) skip++; frames = 0; acc = 0; }
+      if(frames === 90){ if(acc/90 > .04 && skip < 2) skip++; frames = 0; acc = 0; } // solo baja si va MUY lento, y nunca vuelve a cambiar (sin parpadeo)
       clock += dt; drawT += dt;
       const playing = (typeof isPlaying !== 'undefined') && isPlaying;
       phase += dt * (playing ? 7.4 : 4.6);
-      if(ptrs.size === 0){
-        if(interactive){ yaw += vYaw * dt * 60; vYaw += (.0022 - vYaw) * Math.min(1, dt * 1.6); }
-        else { const w = yaw - Math.round(yaw / 6.28319) * 6.28319; yaw -= w * Math.min(1, dt * 1.8); vYaw = 0; }
-        pitch += vPitch * dt * 60; vPitch *= Math.exp(-dt * 3);
-      }
-      if(resetting){ pitch += (PITCH0 - pitch) * Math.min(1, dt * 6); if(Math.abs(pitch - PITCH0) < .004) resetting = false; }
-      pitch = clamp(pitch, -1.5, .75);
-      // el zoom avanza con "peso": tiene una velocidad máxima para que se note el acercamiento
-      { const dl = Math.log(tz / zoom), lim = (resetting ? 2.4 : .85) * dt;
-        zoom *= Math.exp(clamp(dl * Math.min(1, dt * 3.2), -lim, lim)); }
+      // La cámara NO se mueve sola: solo cambia con tus dedos (sin inercia, sin balanceo, sin volver al centro)
+      stepAnim(); zoom = tz;
       spin += dt * .16;
       const beat = 1 + .045 * Math.sin(phase) + (playing ? .05 * Math.pow(Math.max(0, Math.sin(phase * .5)), 8) : 0);
-      // cámara: al acercarte, el centro de la vista viaja hasta la galaxia elegida (y regresa al alejarte)
-      const r = zoom / Z0; wF = sstep(1.08, 2.2, r);
-      { const G0 = focus >= 0 ? GN[focus] : null, k = Math.min(1, dt * 4);
-        camX += ((G0 ? G0.x * wF : 0) - camX) * k; camY += ((G0 ? G0.y * wF : 0) - camY) * k; camZ += ((G0 ? G0.z * wF : 0) - camZ) * k; }
-      const swayY = yaw + .25 * Math.sin(clock * .4), cy = Math.cos(swayY), sy = Math.sin(swayY), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const r = zoom / Z0;
 
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = '#fff';
+      const starSpr = dotSprite('#ffffff');
       for(let i=0;i<stars.length;i+=skip){
         const s = stars[i];
-        if(!proj(s.x, s.y, s.z, cy, sy, cp, sp)) continue;
+        if(!proj(s.x, s.y, s.z)) continue;
         ctx.globalAlpha = s.a * (.7 + .3*Math.sin(clock*2 + i));
-        const z = Math.max(1, s.s * 1.3 * Math.sqrt(pp)); ctx.fillRect(px, py, z, z);
+        const z = Math.max(1.6, s.s * 1.6 * Math.sqrt(pp)); ctx.drawImage(starSpr, px - z/2, py - z/2, z, z);
       }
-      let lastC = '';
+      // polvo fino: arrays tipados + proyección en línea + dibujado por lotes (lo más rápido posible)
+      if(DN){
+        const cds = [], sds = [];
+        GN.forEach((G, gi)=>{ const d = spin * G.dir; cds[gi] = Math.cos(d); sds[gi] = Math.sin(d); });
+        const dz = clamp(.7 * Math.sqrt(F / D * K * zoom), 1.3, 3.2);
+        const m0 = M[0], m1 = M[1], m2 = M[2], m3 = M[3], m4 = M[4], m5 = M[5], m6 = M[6], m7 = M[7], m8 = M[8];
+        const sc = F * K * zoom, hw = W * .5, hh = H * .5;
+        let ck = -1, Gx = 0, Gy = 0, Gz = 0, Gc = 0, Gs = 0, Grc = 0, Grs = 0, cd = 1, sd = 0, cg = -1;
+        ctx.beginPath();
+        for(let i=0; i<DN; i++){
+          const k = dK[i];
+          if(k !== ck){ if(ck >= 0) ctx.fill(); ctx.beginPath(); ctx.fillStyle = kCol[k]; ctx.globalAlpha = kAl[k]; ck = k; }
+          const gi = dGi[i];
+          if(gi !== cg){ const G = GN[gi]; cg = gi; Gx = G.x - camX; Gy = G.y - camY; Gz = G.z - camZ; Gc = G.c; Gs = G.s; Grc = G.rc; Grs = G.rs; cd = cds[gi]; sd = sds[gi]; }
+          const r = dR[i], ca = dCa[i], sa = dSa[i], yv = dY[i];
+          const lx = r * (ca * cd - sa * sd), lz = r * (sa * cd + ca * sd);
+          const y1 = yv * Gc - lz * Gs, z1 = yv * Gs + lz * Gc;
+          const wx = Gx + lx * Grc - y1 * Grs, wy = Gy + lx * Grs + y1 * Grc, wz = Gz + z1;
+          const d = D + m6 * wx + m7 * wy + m8 * wz; if(d < 70) continue;
+          const sk = sc / d, sx = hw + (m0 * wx + m1 * wy + m2 * wz) * sk, sy = hh + (m3 * wx + m4 * wy + m5 * wz) * sk;
+          if(sx < -3 || sx > W + 3 || sy < -3 || sy > H + 3) continue;
+          ctx.rect(sx - dz * .5, sy - dz * .5, dz, dz);
+        }
+        if(ck >= 0) ctx.fill();
+      }
+      let lastC = '', spr = null;
       for(let i=0;i<gal.length;i+=skip){
         const p = gal[i];
-        if(p.col !== lastC){ ctx.fillStyle = p.col; lastC = p.col; }
+        if(p.col !== lastC){ spr = dotSprite(p.col); lastC = p.col; }
         place(p.gi, p.r, p.y, p.a + spin * GN[p.gi].dir);
-        if(!proj(gx, gy, gz, cy, sy, cp, sp)) continue;
-        ctx.globalAlpha = Math.min(.85, .35 + pp*.35);
-        const z = Math.min(6, Math.max(1, p.s * 1.5 * Math.sqrt(pp))); ctx.fillRect(px - z/2, py - z/2, z, z);
+        if(!proj(gx, gy, gz)) continue;
+        ctx.globalAlpha = Math.min(.9, .4 + pp*.35);
+        const z = Math.min(7, Math.max(1.8, p.s * 1.7 * Math.sqrt(pp))); ctx.drawImage(spr, px - z/2, py - z/2, z, z);
       }
       for(const G of GN){
-        if(!proj(G.x, G.y, G.z, cy, sy, cp, sp)) continue;
-        G.sx = px; G.sy = py;
+        if(!proj(G.x, G.y, G.z)) continue;
+        G.sx = px; G.sy = py; G.sr = GR * pp;
         const R = GR * .45 * pp, g = ctx.createRadialGradient(px, py, 0, px, py, R);
         g.addColorStop(0, 'rgba(255,245,235,.6)'); g.addColorStop(.35, `rgba(${G.glow},.22)`); g.addColorStop(1, `rgba(${G.glow},0)`);
+        if(px + R < 0 || px - R > W || py + R < 0 || py - R > H) continue;
         ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(px - R, py - R, R*2, R*2);
       }
       // corazón de piedritas: se va dibujando al abrir la galaxia (nosotros → ali → axel → nosotros) y luego brilla con ondas de luz
@@ -3349,107 +3445,159 @@
         for(let i=0;i<trail.length;i+=skip){
           const p = trail[i];
           if(p.u > pe) continue;
-          if(p.g !== lastH){ ctx.fillStyle = PAL_H[p.g]; lastH = p.g; }
-          if(!proj(p.x, p.y, p.z, cy, sy, cp, sp)) continue;
+          if(p.g !== lastH){ spr = dotSprite(PAL_H[p.g]); lastH = p.g; }
+          if(!proj(p.x, p.y, p.z)) continue;
           const wave = .5 + .5 * Math.sin(6.2832 * (p.u * 2 - clock * .12));
           const head = pe < 1 ? clamp(1 - (pe - p.u) * 14, 0, 1) : 0;
           ctx.globalAlpha = clamp((.3 + .55 * wave * wave + head) * pul * (.6 + .4 * Math.sin(clock * 2 + p.ph)), 0, 1);
-          const z = clamp(p.s * 1.25 * Math.sqrt(pp) * (1 + head), 1, 6); ctx.fillRect(px - z/2, py - z/2, z, z);
+          const z = clamp(p.s * 1.9 * Math.sqrt(pp) * (1 + head), 1.8, 9); ctx.drawImage(spr, px - z/2, py - z/2, z, z);
         }
       }
       ctx.globalCompositeOperation = 'source-over';
       // imágenes y frases: casi invisibles de lejos; al acercarte a una galaxia, las suyas crecen y se vuelven nítidas
-      const dsZ = sstep(1.1, 4.2, r), cap = Math.min(W, H) * .42;
+      const dsZ = sstep(1.3, 5, r), cap = Math.min(W, H) * .42;
       const list = [];
       for(const sp_ of sprites){
         if(sp_.bad || (sp_.kind==='img' && !sp_.ok)) continue;
-        place(sp_.gi, sp_.rr, sp_.y + Math.sin(clock * .9 + sp_.ph) * 4, sp_.a0 + clock * sp_.w * GN[sp_.gi].dir);
-        if(!proj(gx, gy, gz, cy, sy, cp, sp)) continue;
+        if(sp_.kind === 'img' && sp_.pi != null){ const q = gal[sp_.pi]; place(q.gi, q.r, q.y, q.a + spin * GN[q.gi].dir); }
+        else place(sp_.gi, sp_.rr, sp_.y + Math.sin(clock * .9 + sp_.ph) * 4, sp_.a0 + clock * sp_.w * GN[sp_.gi].dir);
+        if(!proj(gx, gy, gz)) continue;
         list.push({ s: sp_, x: px, y: py, p: pp, z: pz });
       }
       list.sort((a,b)=>b.z - a.z);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for(const it of list){
         const s = it.s, al = Math.max(.25, Math.min(1, 1 - (it.z + 200) / 620));
-        const ds = dsZ * (s.gi === focus ? 1 : 1 - wF * .9);
+        const ds = dsZ;
         if(s.kind === 'txt'){
-          const fpx = Math.min(64, s.sz * it.p * (.1 + .9 * ds)); if(fpx < 3) continue;
-          ctx.globalAlpha = al * clamp((fpx - 3) / 8, 0, 1); ctx.font = `600 ${fpx}px Poppins, system-ui, sans-serif`;
-          ctx.shadowColor = 'rgba(255,90,170,.9)'; ctx.shadowBlur = fpx > 10 ? 8 : 0;
-          ctx.fillStyle = '#fff'; ctx.fillText(s.text, it.x, it.y); ctx.shadowBlur = 0;
+          const fpx = Math.min(40, 2.3 * it.p); if(fpx < 3) continue; // misma escala que las fotos (3.4–4.2 u): letra de ~2.3 u
+          ctx.globalAlpha = Math.max(.6, al) * clamp((fpx - 3) / 6, 0, 1); ctx.font = `600 ${fpx}px Poppins, system-ui, sans-serif`;
+          ctx.fillStyle = '#fff'; ctx.fillText(s.text, it.x, it.y);
         } else {
-          const z = Math.min(cap, s.sz * it.p * (.15 + .85 * ds)); if(z < 1.5) continue;
-          const al2 = al * (.35 + .65 * ds), rr = Math.max(2, z * .16);
-          if(z < 7){ ctx.globalAlpha = al2; ctx.drawImage(s.bmp, it.x - z/2, it.y - z/2, z, z); continue; }
-          ctx.save(); ctx.globalAlpha = al2; ctx.beginPath();
-          if(ctx.roundRect) ctx.roundRect(it.x - z/2, it.y - z/2, z, z, rr); else ctx.rect(it.x - z/2, it.y - z/2, z, z);
-          ctx.clip();
-          try{ ctx.drawImage(s.bmp, it.x - z/2, it.y - z/2, z, z); }catch(e){ s.bad = true; }
-          ctx.restore();
-          if(z > 16){
-            ctx.globalAlpha = al2 * .55; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1;
-            ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(it.x - z/2, it.y - z/2, z, z, rr); else ctx.rect(it.x - z/2, it.y - z/2, z, z); ctx.stroke();
-          }
+          const z = Math.min(cap, (s.wsz || 3.6) * it.p); if(z < 3) continue;
+          ctx.globalAlpha = (.88 + .12 * al) * clamp((z - 3) / 4, 0, 1);
+          ctx.drawImage(z * dpr <= 90 ? s.bmp2 : s.bmp, it.x - z/2, it.y - z/2, z, z);
         }
       }
       ctx.globalAlpha = 1;
     }
 
+    // ---------- Elegir galaxia y explorarla ----------
+    // Vista general: la cámara está quieta y deslizar cambia de página.
+    // Toca una galaxia -> la cámara vuela hasta ella y ahí tienes libertad total (girar, mover, acercar).
+    // Toca otra galaxia para ir a ella. Doble toque en cualquier parte: vuelves a la vista general.
+    let focused = -1, anim = null, zLo = 0, zHi = 0;
+    const zClamp = v => focused >= 0 ? clamp(v, zLo, zHi) : clamp(v, ZMIN, ZMAX);
+    const ptrs = new Map(); let pinch = null, tapT = 0, tapX = 0, tapY = 0;
+
+    function m2q(m){
+      const t = m[0] + m[4] + m[8]; let x, y, z, w, q;
+      if(t > 0){ q = Math.sqrt(t + 1) * 2; w = q / 4; x = (m[7] - m[5]) / q; y = (m[2] - m[6]) / q; z = (m[3] - m[1]) / q; }
+      else if(m[0] > m[4] && m[0] > m[8]){ q = Math.sqrt(1 + m[0] - m[4] - m[8]) * 2; w = (m[7] - m[5]) / q; x = q / 4; y = (m[1] + m[3]) / q; z = (m[2] + m[6]) / q; }
+      else if(m[4] > m[8]){ q = Math.sqrt(1 + m[4] - m[0] - m[8]) * 2; w = (m[2] - m[6]) / q; x = (m[1] + m[3]) / q; y = q / 4; z = (m[5] + m[7]) / q; }
+      else { q = Math.sqrt(1 + m[8] - m[0] - m[4]) * 2; w = (m[3] - m[1]) / q; x = (m[2] + m[6]) / q; y = (m[5] + m[7]) / q; z = q / 4; }
+      return [w, x, y, z];
+    }
+    function q2m(q){
+      const w = q[0], x = q[1], y = q[2], z = q[3];
+      return [1 - 2*(y*y + z*z), 2*(x*y - z*w), 2*(x*z + y*w),  2*(x*y + z*w), 1 - 2*(x*x + z*z), 2*(y*z - x*w),  2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x*x + y*y)];
+    }
+    function slerp(a, b, u){
+      let d = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]; const sg = d < 0 ? -1 : 1; d *= sg;
+      let k0, k1;
+      if(d > .9995){ k0 = 1 - u; k1 = u * sg; }
+      else { const th = Math.acos(d), sn = Math.sin(th); k0 = Math.sin((1 - u) * th) / sn; k1 = Math.sin(u * th) / sn * sg; }
+      const r = [a[0]*k0 + b[0]*k1, a[1]*k0 + b[1]*k1, a[2]*k0 + b[2]*k1, a[3]*k0 + b[3]*k1], l = Math.hypot(r[0], r[1], r[2], r[3]) || 1;
+      return [r[0]/l, r[1]/l, r[2]/l, r[3]/l];
+    }
+    // vuelo suave de la cámara (solo se lanza cuando TÚ tocas)
+    function flyTo(to, dur, onEnd){
+      anim = { t0: performance.now(), dur, q0: m2q(M), q1: to.q || m2q(M), c0: [camX, camY, camZ], c1: [to.x, to.y, to.z], z0: tz, z1: to.zoom, onEnd };
+    }
+    function stepAnim(){
+      if(!anim) return;
+      const u = Math.min(1, (performance.now() - anim.t0) / anim.dur), e = u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2;
+      M = q2m(slerp(anim.q0, anim.q1, e));
+      camX = anim.c0[0] + (anim.c1[0] - anim.c0[0]) * e; camY = anim.c0[1] + (anim.c1[1] - anim.c0[1]) * e; camZ = anim.c0[2] + (anim.c1[2] - anim.c0[2]) * e;
+      tz = zoom = anim.z0 * Math.pow(anim.z1 / anim.z0, e);
+      if(u >= 1){ const f = anim.onEnd; anim = null; if(f) f(); }
+    }
     function showHint(t){
       if(!hint) return; hint.textContent = t; hint.style.opacity = '1';
       clearTimeout(hintTm); hintTm = setTimeout(()=>{ hint.style.opacity = '0'; }, 3800);
     }
-    // Modo ver (por defecto): la galaxia solo se mira y los deslizamientos cambian de página.
-    // Doble toque: modo explorar (un dedo gira, dos dedos hacen zoom hacia la galaxia que tengas más cerca). Otro doble toque: vuelve a la vista inicial.
-    const ptrs = new Map(); let pinchD = 0, tapT = 0, tapX = 0, tapY = 0;
-    // elige a qué galaxia te vas a acercar (la más cercana a tus dedos); se queda fija hasta que te alejes
-    function pick(sx, sy){
-      if(wF > .05) return;
-      const rc = cv.getBoundingClientRect(); sx -= rc.left; sy -= rc.top;
-      let best = -1, bd = 1e12;
-      GN.forEach((G, i)=>{ const d = (G.sx - sx) * (G.sx - sx) + (G.sy - sy) * (G.sy - sy); if(d < bd){ bd = d; best = i; } });
-      focus = best;
+    // galaxia bajo el dedo (null si tocaste espacio vacío)
+    function hit(cx, cy){
+      const r = cv.getBoundingClientRect(), x = cx - r.left, y = cy - r.top; let best = -1, bd = 1;
+      GN.forEach((G, i)=>{ if(!G.sr) return; const d = Math.hypot(x - G.sx, y - G.sy) / (G.sr * 1.15); if(d < bd){ bd = d; best = i; } });
+      return best;
     }
-    function setMode(on){
-      interactive = on; ptrs.clear(); pinchD = 0;
-      if(on){ showHint('Pellizca sobre una galaxia para acercarte · doble toque para salir'); }
-      else { tz = Z0; resetting = true; vPitch = 0; vYaw = .0022; showHint('Doble toque para explorar'); }
+    function focusGalaxy(i){
+      const G = GN[i]; if(!G) return;
+      const z = clamp(Math.min(W, H) * .40 / (GR * F / D * K), ZMIN, ZMAX);
+      focused = i; interactive = true; ptrs.clear(); pinch = null;
+      zLo = z; zHi = z * 6; // aquí queda fijo el zoom mínimo; el máximo deja ver las fotos dentro de los cuadritos
+      flyTo({ x: G.x, y: G.y, z: G.z, zoom: z }, 850);
+      showHint('Acércate para ver las fotos entre las estrellas · doble toque: volver');
+    }
+    function leave(){
+      focused = -1; ptrs.clear(); pinch = null;
+      flyTo({ x: 0, y: 0, z: 0, zoom: Z0, q: m2q(M0) }, 850, ()=>{ interactive = false; showHint('Toca una galaxia para explorarla'); });
+    }
+
+    // gira como un "turntable": de lado = alrededor del eje vertical; arriba/abajo = inclina. La cámara no se desnivela sola.
+    function orbit(dx, dy){
+      const up = M[4] >= 0 ? 1 : -1; // boca abajo, el giro lateral se invierte para que siga natural
+      const a = -dx * .0065 * up, c = Math.cos(a), s_ = Math.sin(a), o = M;
+      M = [o[0]*c - o[2]*s_, o[1], o[0]*s_ + o[2]*c,  o[3]*c - o[5]*s_, o[4], o[3]*s_ + o[5]*c,  o[6]*c - o[8]*s_, o[7], o[6]*s_ + o[8]*c];
+      rot(0, dy * .0065);
+    }
+    function twoTouch(){
+      const [a, b] = [...ptrs.values()];
+      return { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
     }
     function onDown(e){
-      ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, t:performance.now() });
+      ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, t:performance.now(), btn:e.button });
       try{ cv.setPointerCapture(e.pointerId); }catch(_){}
-      if(interactive && ptrs.size === 2){ const [a,b] = [...ptrs.values()]; pinchD = Math.hypot(a.x-b.x, a.y-b.y); pick((a.x+b.x)/2, (a.y+b.y)/2); }
+      pinch = (interactive && ptrs.size === 2) ? twoTouch() : null;
     }
     function onMove(e){
       const p = ptrs.get(e.pointerId); if(!p) return;
       const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-      if(!interactive) return;
+      if(!interactive || anim) return;
       if(ptrs.size === 1){
-        resetting = false;
-        yaw += dx * .008; pitch = clamp(pitch - dy * .006, -1.5, .75);
-        vYaw = clamp(dx * .0016, -.06, .06); vPitch = clamp(-dy * .0012, -.04, .04);
+        const mouse = e.pointerType === 'mouse';
+        if(mouse && (p.btn === 2 || p.btn === 1 || e.shiftKey)) pan(dx, dy);
+        else if(mouse && e.altKey) rot(2, dx * .008);
+        else orbit(dx, dy);
       } else if(ptrs.size >= 2){
-        const [a,b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y);
-        if(pinchD > 0) tz = clamp(tz * Math.pow(d / pinchD, .5), ZMIN, ZMAX);
-        pinchD = d;
+        const t = twoTouch();
+        if(pinch){
+          pan(t.cx - pinch.cx, t.cy - pinch.cy);
+          tz = zClamp(tz * t.d / pinch.d); zoom = tz;
+        }
+        pinch = t;
       }
     }
     function onUp(e){
       const p = ptrs.get(e.pointerId); ptrs.delete(e.pointerId);
-      if(ptrs.size < 2) pinchD = 0;
-      if(!p || e.type === 'pointercancel' || ptrs.size) return;
+      pinch = (interactive && ptrs.size === 2) ? twoTouch() : null;
+      if(!p || e.type === 'pointercancel' || ptrs.size || anim) return;
       const n = performance.now();
-      if(Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 12 && n - p.t < 260){
-        if(n - tapT < 340 && Math.hypot(e.clientX - tapX, e.clientY - tapY) < 60){ tapT = 0; setMode(!interactive); }
-        else { tapT = n; tapX = e.clientX; tapY = e.clientY; }
-      }
+      if(Math.hypot(e.clientX - p.x0, e.clientY - p.y0) >= 12 || n - p.t >= 260) return; // fue un arrastre, no un toque
+      const dbl = n - tapT < 340 && Math.hypot(e.clientX - tapX, e.clientY - tapY) < 60;
+      if(interactive && dbl){ tapT = 0; leave(); return; }
+      tapT = n; tapX = e.clientX; tapY = e.clientY;
+      const i = hit(e.clientX, e.clientY);
+      if(i >= 0 && i !== focused) focusGalaxy(i);
+      else if(i < 0 && !interactive) showHint('Toca una galaxia para explorarla');
     }
     cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointermove', onMove);
     cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
+    cv.addEventListener('contextmenu', e=>{ if(interactive) e.preventDefault(); });
     cv.addEventListener('wheel', e=>{
-      if(!interactive) return; e.preventDefault();
-      const n = performance.now(); if(n - lastWheel > 350) pick(e.clientX, e.clientY); lastWheel = n;
-      tz = clamp(tz * Math.exp(-e.deltaY * .0007), ZMIN, ZMAX);
+      if(!interactive || anim) return; e.preventDefault();
+      tz = zClamp(tz * Math.exp(-e.deltaY * .001)); zoom = tz;
     }, { passive:false });
 
     document.addEventListener('visibilitychange', ()=>{
@@ -3460,14 +3608,14 @@
       start(){
         if(running) return;
         build(); buildSprites();
-        running = true; drawT = 0; showHint('Doble toque para explorar');
+        running = true; drawT = 0; showHint('Toca una galaxia para explorarla');
         if(!ro && window.ResizeObserver){ ro = new ResizeObserver(()=>resize()); ro.observe(box); }
         resize(); last = 0;
         if(!raf && !document.hidden) raf = requestAnimationFrame(frame);
       },
       stop(){ running = false; if(raf){ cancelAnimationFrame(raf); raf = 0; } },
       isInteractive(){ return interactive; },
-      exit(){ interactive = false; ptrs.clear(); pinchD = 0; tz = zoom = Z0; pitch = PITCH0; resetting = false; vPitch = 0; vYaw = 0; yaw = 0; focus = -1; wF = 0; camX = camY = camZ = 0; }
+      exit(){ interactive = false; focused = -1; anim = null; ptrs.clear(); pinch = null; resetView(); }
     };
   })();
 
