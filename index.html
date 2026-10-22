@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registro de entrada</title>
+<style>
+:root{--bg:#EDF1F4;--ink:#16202B;--mut:#5B6875;--card:#fff;--ok:#0F766E;--err:#B42318;--line:#D5DCE3}
+@media(prefers-color-scheme:dark){:root{--bg:#10171E;--ink:#E8EDF2;--mut:#93A1AE;--card:#18222C;--ok:#3CC5B5;--err:#FF8A7A;--line:#2A3745}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(460px,100%);padding:20px}
+#hora{font-size:clamp(48px,14vw,76px);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-1px;line-height:1;text-align:center}
+#fecha{color:var(--mut);margin:6px 0 22px;text-align:center;text-transform:capitalize}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.n{font-size:20px;font-weight:600}
+.h{color:var(--ok);font-size:14px;font-variant-numeric:tabular-nums}
+button{font:inherit;font-size:17px;padding:12px 20px;border:0;border-radius:10px;background:var(--ok);color:#fff;cursor:pointer}
+button:disabled{background:var(--line);color:var(--mut);cursor:default}
+button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+#msg{min-height:24px;text-align:center;color:var(--err)}
+</style>
+</head>
+<body>
+<main>
+  <div id="hora">--:--:--</div>
+  <div id="fecha"></div>
+  <div id="lista"></div>
+  <div id="msg" role="status"></div>
+</main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app=initializeApp({
+  apiKey:"AIzaSyCqkijkSqL9OBXpO5OSbfKD4zkpSEBlwsE",authDomain:"registro-ad110.firebaseapp.com",projectId:"registro-ad110",storageBucket:"registro-ad110.firebasestorage.app",messagingSenderId:"586318994815",appId:"1:586318994815:web:f466ab4703944b2fd38e4a"
+});
+const db=getFirestore(app);
+const EQUIPO=[["axel","Axel"],["dani","Dani"],["liz","Liz"],["eric","Eric"],["alan","Alan"]];
+const $=id=>document.getElementById(id);
+const fechaLocal=()=>new Date().toLocaleDateString("sv");
+const hms=d=>d.toLocaleTimeString("es-MX",{hour12:false});
+
+function reloj(){
+  const d=new Date();
+  $("hora").textContent=hms(d);
+  $("fecha").textContent=d.toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
+}
+setInterval(reloj,1000);reloj();
+
+$("lista").innerHTML=EQUIPO.map(([id,n])=>
+  `<div class="row"><div><div class="n">${n}</div><div class="h" id="h-${id}"></div></div><button id="b-${id}" disabled>Registrar</button></div>`).join("");
+
+function marca(id,ts){
+  $("h-"+id).textContent="Entrada a las "+hms(ts.toDate());
+  const b=$("b-"+id);b.textContent="Registrado";b.disabled=true;
+}
+
+(async()=>{
+  for(const [id] of EQUIPO){
+    const s=await getDoc(doc(db,"registros",fechaLocal()+"_"+id));
+    if(s.exists()&&s.data().ts)marca(id,s.data().ts);
+    else{const b=$("b-"+id);b.disabled=false;b.onclick=()=>registrar(id,b)}
+  }
+})().catch(()=>$("msg").textContent="No hay conexión con el servidor");
+
+async function registrar(id,b){
+  b.disabled=true;$("msg").textContent="";
+  try{
+    const f=fechaLocal(),ref=doc(db,"registros",f+"_"+id);
+    await setDoc(ref,{empleadoId:id,nombre:EQUIPO.find(e=>e[0]===id)[1],fecha:f,ts:serverTimestamp()});
+    marca(id,(await getDoc(ref)).data().ts);
+  }catch(e){b.disabled=false;$("msg").textContent="No se pudo registrar. Intenta de nuevo"}
+}
+</script>
+</body>
+</html>

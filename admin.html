@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administrador · Entradas</title>
+<style>
+:root{--bg:#EDF1F4;--ink:#16202B;--mut:#5B6875;--card:#fff;--line:#D5DCE3;--ok:#0F766E;--early:#1D4ED8;--late:#B45309;--none:#B42318}
+@media(prefers-color-scheme:dark){:root{--bg:#10171E;--ink:#E8EDF2;--mut:#93A1AE;--card:#18222C;--line:#2A3745;--ok:#3CC5B5;--early:#7FA8FF;--late:#F5A04B;--none:#FF8A7A}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:22px;margin:0 0 14px}h2{font-size:17px;margin:22px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+input,button{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--ok);border-color:var(--ok);color:#fff}
+button.sec{background:var(--card);color:var(--ink);border-color:var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:600;font-size:14px}
+.e{color:var(--early)}.p{color:var(--ok)}.r{color:var(--late)}.f{color:var(--none)}
+td.s{font-weight:600}
+#login{max-width:340px;margin:12vh auto}
+#login input{width:100%;margin-bottom:8px}
+.err{color:var(--none);min-height:20px}
+:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap" id="panel">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h1 style="margin:0">Entradas</h1>
+    <div class="row"><input type="date" id="dia"></div>
+  </div>
+  <div class="stats">
+    <div class="stat e"><b id="nE">0</b>Tempranos</div>
+    <div class="stat p"><b id="nP">0</b>Puntuales</div>
+    <div class="stat r"><b id="nR">0</b>Retardos</div>
+    <div class="stat f"><b id="nF">0</b>Sin registro</div>
+  </div>
+  <div class="card tw">
+    <table><thead><tr><th>#</th><th>Nombre</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Diferencia</th></tr></thead><tbody id="tb"></tbody></table>
+  </div>
+
+</div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,query,where,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app=initializeApp({
+  apiKey:"AIzaSyCqkijkSqL9OBXpO5OSbfKD4zkpSEBlwsE",authDomain:"registro-ad110.firebaseapp.com",projectId:"registro-ad110",storageBucket:"registro-ad110.firebasestorage.app",messagingSenderId:"586318994815",appId:"1:586318994815:web:f466ab4703944b2fd38e4a"
+});
+const db=getFirestore(app);
+const $=id=>document.getElementById(id);
+// Horario de cada trabajador (edítalo aquí)
+const EMPS={axel:{nombre:"Axel"},dani:{nombre:"Dani"},liz:{nombre:"Liz"},eric:{nombre:"Eric"},alan:{nombre:"Alan"}};
+const HORA_ENTRADA="09:00",TOLERANCIA_MIN=10;
+let regs=[],unsubR=null;
+
+$("dia").value=new Date().toLocaleDateString("sv");
+escuchaDia();
+$("dia").onchange=escuchaDia;
+
+function escuchaDia(){
+  unsubR&&unsubR();
+  unsubR=onSnapshot(query(collection(db,"registros"),where("fecha","==",$("dia").value)),s=>{
+    regs=s.docs.map(d=>d.data()).filter(r=>r.ts).sort((a,b)=>a.ts.toMillis()-b.ts.toMillis());
+    pinta();
+  });
+}
+
+const fmt=s=>{const a=Math.abs(s),m=Math.floor(a/60),r=a%60;return (m?m+" min ":"")+r+" s"};
+
+function pinta(){
+  const dia=$("dia").value;let nE=0,nP=0,nR=0;
+  $("tb").innerHTML=regs.map((r,i)=>{
+    const diff=Math.round((r.ts.toMillis()-new Date(dia+"T"+HORA_ENTRADA+":00").getTime())/1000);
+    let c,t,sg;
+    if(diff<0){c="e";t="Temprano";sg="−";nE++}
+    else if(diff<=TOLERANCIA_MIN*60){c="p";t="Puntual";sg="+";nP++}
+    else{c="r";t="Retardo";sg="+";nR++}
+    const d=r.ts.toDate();
+    return `<tr><td>${i+1}</td><td>${esc(r.nombre)}</td><td>${d.toLocaleDateString("es-MX")}</td><td>${d.toLocaleTimeString("es-MX",{hour12:false})}</td><td class="s ${c}">${t}</td><td>${sg}${fmt(diff)}</td></tr>`;
+  }).join("");
+  const vistos=new Set(regs.map(r=>r.empleadoId));
+  const faltan=Object.entries(EMPS).filter(([id])=>!vistos.has(id));
+  $("tb").innerHTML+=faltan.map(([id,e])=>`<tr><td>–</td><td>${e.nombre}</td><td>–</td><td>–</td><td class="s f">Sin registro</td><td>–</td></tr>`).join("");
+  $("nE").textContent=nE;$("nP").textContent=nP;$("nR").textContent=nR;$("nF").textContent=faltan.length;
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+</script>
+</body>
+</html>
