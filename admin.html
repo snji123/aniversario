@@ -3,62 +3,70 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Administrador · Entradas</title>
+<title>Entradas · Administrador</title>
 <style>
 :root{--bg:#EDF1F4;--ink:#16202B;--mut:#5B6875;--card:#fff;--line:#D5DCE3;--ok:#0F766E;--early:#1D4ED8;--late:#B45309;--none:#B42318}
 @media(prefers-color-scheme:dark){:root{--bg:#10171E;--ink:#E8EDF2;--mut:#93A1AE;--card:#18222C;--line:#2A3745;--ok:#3CC5B5;--early:#7FA8FF;--late:#F5A04B;--none:#FF8A7A}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
-.wrap{max-width:900px;margin:0 auto}
-h1{font-size:22px;margin:0 0 14px}h2{font-size:17px;margin:22px 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px 16px 90px}
+.wrap{max-width:720px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+h1{font-size:22px;margin:0}
+h2{font-size:26px;margin:0}
+h3{font-size:17px;margin:0}
+.sub{color:var(--mut);font-size:14px;text-transform:capitalize;margin:2px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
 input,button{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
 button{cursor:pointer;background:var(--ok);border-color:var(--ok);color:#fff}
 button.sec{background:var(--card);color:var(--ink);border-color:var(--line)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
-.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;font-size:13px}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{color:var(--mut);font-weight:600;font-size:14px}
-.e{color:var(--early)}.p{color:var(--ok)}.r{color:var(--late)}.f{color:var(--none)}
+th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th{color:var(--mut);font-weight:600;font-size:13px}
 td.s{font-weight:600}
-#login{max-width:340px;margin:12vh auto}
-#login input{width:100%;margin-bottom:8px}
-.err{color:var(--none);min-height:20px}
+.e{color:var(--early)}.p{color:var(--ok)}.r{color:var(--late)}.f{color:var(--none)}
+.resumen{color:var(--mut);font-size:14px;margin:4px 0 8px}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:12px}
+.flecha{display:flex;margin:6px auto 22px;align-items:center;gap:8px;background:transparent;color:var(--mut);border:1px solid var(--line)}
+.flecha span{display:inline-block;animation:bota 1.8s ease-in-out infinite}
+@keyframes bota{0%,100%{transform:translateY(-2px)}50%{transform:translateY(3px)}}
+#up{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:46px;height:46px;padding:0;border-radius:50%;font-size:20px;opacity:0;transform:translateY(14px) scale(.9);pointer-events:none;transition:opacity .35s,transform .35s;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#up.show{opacity:.9;transform:none;pointer-events:auto}
+#up:hover{opacity:1;transform:translateY(-2px)}
+#mas{display:block;margin:0 auto}
 :focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.flecha span{animation:none}#up{transition:none}}
 </style>
 </head>
 <body>
-<div class="wrap" id="panel">
-  <div class="row" style="justify-content:space-between;margin-bottom:12px">
-    <h1 style="margin:0">Entradas</h1>
-    <div class="row"><input type="date" id="dia"></div>
-  </div>
-  <div class="stats">
-    <div class="stat e"><b id="nE">0</b>Tempranos</div>
-    <div class="stat p"><b id="nP">0</b>Puntuales</div>
-    <div class="stat r"><b id="nR">0</b>Retardos</div>
-    <div class="stat f"><b id="nF">0</b>Sin registro</div>
-  </div>
-  <div class="card tw">
-    <table><thead><tr><th>#</th><th>Nombre</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Diferencia</th></tr></thead><tbody id="tb"></tbody></table>
-  </div>
+<div class="wrap">
+  <header><h1>Entradas</h1></header>
 
-  <h2>Configuración</h2>
-  <div class="card" id="cfg">
+  <details class="card" id="cfg">
+    <summary>⚙ Configuración</summary>
     <div class="row">
       <label>Hora de entrada <input id="cHora" type="time" value="16:00"></label>
       <label>Tolerancia (min) <input id="cTol" type="number" min="0" value="10" style="width:80px"></label>
     </div>
-    <p style="color:var(--mut);margin:12px 0 6px;font-size:14px">Nombres</p>
+    <p class="resumen" style="margin-top:12px">Nombres</p>
     <div class="row" id="cn"></div>
     <div class="row" style="margin-top:12px"><button id="cGuardar">Guardar cambios</button><span id="cMsg" class="p"></span></div>
-    <p style="color:var(--mut);font-size:13px;margin:10px 0 0">El nuevo horario se aplica también a los días anteriores al consultarlos.</p>
-  </div>
+    <p class="resumen">El nuevo horario se aplica también a los días anteriores.</p>
+  </details>
+
+  <section id="hoy"></section>
+  <button class="flecha" id="baja">Días anteriores <span>↓</span></button>
+  <section id="prev"></section>
+  <button class="sec" id="mas">Cargar 7 días más</button>
 </div>
+<button id="up" aria-label="Volver arriba">↑</button>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -71,9 +79,60 @@ const db=getFirestore(app);
 const $=id=>document.getElementById(id);
 const IDS=["axel","dani","liz","eric","alan"];
 let CFG={hora:"16:00",tol:10,nombres:{axel:"Axel",dani:"Dani",liz:"Liz",eric:"Eric",alan:"Alan"}};
-let regs=[],unsubR=null;
+let regs=[],DIAS=8,unsub=null,cur="";
 
-$("dia").value=new Date().toLocaleDateString("sv");
+const key=i=>{const d=new Date();d.setDate(d.getDate()-i);return d.toLocaleDateString("sv")};
+const fecha=k=>new Date(k+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
+const hora=d=>d.toLocaleTimeString("es-MX",{hour12:true});
+const fmt=s=>{const a=Math.abs(s),m=Math.floor(a/60),r=a%60;return (m?m+" min ":"")+r+" s"};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const etiqueta=i=>i==0?"Hoy":i==1?"Ayer":i==2?"Anteayer":fecha(key(i)).split(",")[0];
+
+function estado(r,k){
+  const diff=Math.round((r.ts.toMillis()-new Date(k+"T"+CFG.hora+":00").getTime())/1000);
+  if(diff<0)return {c:"e",t:"Temprano",sg:"−",diff};
+  if(diff<=CFG.tol*60)return {c:"p",t:"Puntual",sg:"+",diff};
+  return {c:"r",t:"Retardo",sg:"+",diff};
+}
+
+function bloque(i,rs){
+  const k=key(i),n={e:0,p:0,r:0};
+  const filas=rs.map((r,j)=>{
+    const s=estado(r,k);n[s.c]++;
+    return `<tr><td>${j+1}</td><td>${esc(CFG.nombres[r.empleadoId]||r.nombre)}</td><td>${hora(r.ts.toDate())}</td><td class="s ${s.c}">${s.t}</td><td>${s.sg}${fmt(s.diff)}</td></tr>`;
+  }).join("");
+  const vistos=new Set(rs.map(r=>r.empleadoId)),falta=IDS.filter(id=>!vistos.has(id));
+  const faltan=falta.map(id=>`<tr><td>–</td><td>${esc(CFG.nombres[id])}</td><td>–</td><td class="s f">${i==0?"Pendiente":"Sin registro"}</td><td>–</td></tr>`).join("");
+  const tabla=`<div class="tw"><table><thead><tr><th>#</th><th>Nombre</th><th>Hora</th><th>Estado</th><th>Diferencia</th></tr></thead><tbody>${filas}${faltan}</tbody></table></div>`;
+  const cab=i==0
+    ?`<h2>Hoy</h2><div class="sub">${fecha(k)}</div><div class="stats"><div class="stat e"><b>${n.e}</b>Tempranos</div><div class="stat p"><b>${n.p}</b>Puntuales</div><div class="stat r"><b>${n.r}</b>Retardos</div><div class="stat f"><b>${falta.length}</b>${i==0?"Pendientes":"Faltas"}</div></div>`
+    :`<h3>${etiqueta(i)}</h3><div class="sub" style="margin-bottom:6px">${fecha(k)}</div><div class="resumen">${n.e} tempranos · ${n.p} puntuales · ${n.r} retardos · ${falta.length} sin registro</div>`;
+  return `<div class="card">${cab}${tabla}</div>`;
+}
+
+function pinta(){
+  const por={};
+  regs.forEach(r=>(por[r.fecha]=por[r.fecha]||[]).push(r));
+  const rs=i=>(por[key(i)]||[]).sort((a,b)=>a.ts.toMillis()-b.ts.toMillis());
+  $("hoy").innerHTML=bloque(0,rs(0));
+  let h="";for(let i=1;i<DIAS;i++)h+=bloque(i,rs(i));
+  $("prev").innerHTML=h;
+}
+
+function escucha(){
+  unsub&&unsub();cur=key(0);
+  unsub=onSnapshot(query(collection(db,"registros"),where("fecha",">=",key(DIAS-1))),s=>{
+    regs=s.docs.map(d=>d.data()).filter(r=>r.ts);
+    pinta();
+  });
+}
+setInterval(()=>{if(key(0)!==cur)escucha()},30000);
+
+$("mas").onclick=()=>{DIAS+=7;escucha()};
+$("baja").onclick=()=>$("prev").scrollIntoView({behavior:"smooth",block:"start"});
+$("up").onclick=()=>scrollTo({top:0,behavior:"smooth"});
+addEventListener("scroll",()=>$("up").classList.toggle("show",scrollY>350),{passive:true});
+
 $("cn").innerHTML=IDS.map(id=>`<input data-id="${id}" maxlength="20" aria-label="Nombre">`).join("");
 function formCfg(){
   if($("cfg").contains(document.activeElement))return;
@@ -87,40 +146,10 @@ onSnapshot(doc(db,"config","horario"),s=>{
 $("cGuardar").onclick=async()=>{
   const nombres={};$("cn").querySelectorAll("input").forEach(i=>nombres[i.dataset.id]=i.value.trim()||CFG.nombres[i.dataset.id]);
   try{await setDoc(doc(db,"config","horario"),{hora:$("cHora").value||"16:00",tol:Math.max(0,+$("cTol").value||0),nombres});
-    $("cMsg").textContent="Guardado";}catch(e){$("cMsg").textContent="No se pudo guardar"}
+    $("cMsg").textContent="Guardado"}catch(e){$("cMsg").textContent="No se pudo guardar"}
   setTimeout(()=>$("cMsg").textContent="",3000);
 };
-escuchaDia();
-$("dia").onchange=escuchaDia;
-
-function escuchaDia(){
-  unsubR&&unsubR();
-  unsubR=onSnapshot(query(collection(db,"registros"),where("fecha","==",$("dia").value)),s=>{
-    regs=s.docs.map(d=>d.data()).filter(r=>r.ts).sort((a,b)=>a.ts.toMillis()-b.ts.toMillis());
-    pinta();
-  });
-}
-
-const fmt=s=>{const a=Math.abs(s),m=Math.floor(a/60),r=a%60;return (m?m+" min ":"")+r+" s"};
-
-function pinta(){
-  const dia=$("dia").value;let nE=0,nP=0,nR=0;
-  $("tb").innerHTML=regs.map((r,i)=>{
-    const diff=Math.round((r.ts.toMillis()-new Date(dia+"T"+CFG.hora+":00").getTime())/1000);
-    let c,t,sg;
-    if(diff<0){c="e";t="Temprano";sg="−";nE++}
-    else if(diff<=CFG.tol*60){c="p";t="Puntual";sg="+";nP++}
-    else{c="r";t="Retardo";sg="+";nR++}
-    const d=r.ts.toDate();
-    return `<tr><td>${i+1}</td><td>${esc(CFG.nombres[r.empleadoId]||r.nombre)}</td><td>${d.toLocaleDateString("es-MX")}</td><td>${d.toLocaleTimeString("es-MX",{hour12:true})}</td><td class="s ${c}">${t}</td><td>${sg}${fmt(diff)}</td></tr>`;
-  }).join("");
-  const vistos=new Set(regs.map(r=>r.empleadoId));
-  const faltan=IDS.filter(id=>!vistos.has(id)).map(id=>[id,{nombre:CFG.nombres[id]}]);
-  $("tb").innerHTML+=faltan.map(([id,e])=>`<tr><td>–</td><td>${e.nombre}</td><td>–</td><td>–</td><td class="s f">Sin registro</td><td>–</td></tr>`).join("");
-  $("nE").textContent=nE;$("nP").textContent=nP;$("nR").textContent=nR;$("nF").textContent=faltan.length;
-}
-
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+escucha();
 </script>
 </body>
 </html>
