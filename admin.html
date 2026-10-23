@@ -12,7 +12,7 @@ html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:0 16px 90px}
 .wrap{max-width:720px;margin:0 auto}
 nav{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0;display:flex;gap:6px}
-nav button{flex:1;background:var(--card);color:var(--mut);border:1px solid var(--line)}
+nav button{flex:1;padding:9px 4px;background:var(--card);color:var(--mut);border:1px solid var(--line)}
 nav button.on{background:var(--ok);border-color:var(--ok);color:#fff}
 h2{font-size:26px;margin:0}h3{font-size:17px;margin:0;text-transform:capitalize}h4{margin:0 0 10px;font-size:16px}
 .sub{color:var(--mut);font-size:14px;text-transform:capitalize;margin:2px 0 12px}
@@ -38,6 +38,15 @@ td.s{font-weight:600}
 .emp span{flex:1;font-size:17px}.emp input{flex:1}
 .ic{padding:7px 10px;background:var(--card);color:var(--ink);border-color:var(--line)}
 .chips button{background:var(--card);color:var(--ink);border-color:var(--line);padding:6px 12px;font-size:14px;border-radius:99px}
+.chips button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+.gr{display:grid;grid-template-columns:64px 1fr 92px;gap:8px;align-items:center;padding:8px 0}
+.gn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gt{position:relative;height:24px;background:var(--bg);border-radius:6px}
+.ax{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:var(--mut);opacity:.7}
+.gb{position:absolute;top:4px;bottom:4px;border-radius:4px;transition:width .5s,left .5s}
+.gb.e{background:var(--early)}.gb.p{background:var(--ok)}.gb.r{background:var(--late)}
+.gv{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;line-height:1.25}
+.gv small{display:block;color:var(--mut)}
 #up{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:46px;height:46px;padding:0;border-radius:50%;font-size:20px;opacity:0;transform:translateY(14px) scale(.9);pointer-events:none;transition:opacity .35s,transform .35s;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 #up.show{opacity:.9;transform:none;pointer-events:auto}
 #up:hover{opacity:1;transform:translateY(-2px)}
@@ -51,6 +60,7 @@ td.s{font-weight:600}
   <nav id="tabs">
     <button data-v="hoy" class="on">Hoy</button>
     <button data-v="buscar">Buscar</button>
+    <button data-v="grafica">Gráfica</button>
     <button data-v="equipo">Equipo</button>
   </nav>
 
@@ -82,6 +92,19 @@ td.s{font-weight:600}
     <div id="sRes"></div>
   </section>
 
+  <section id="v-grafica" hidden>
+    <div class="card">
+      <h4>Hora de llegada por persona</h4>
+      <div class="chips row" id="gC" style="margin-bottom:6px">
+        <button data-n="1">Hoy</button><button data-n="7" class="on">7 días</button><button data-n="30">30 días</button>
+      </div>
+      <p class="res" id="gMsg"></p>
+      <div id="gLeg" class="res" style="display:flex;justify-content:space-between"></div>
+      <div id="gBars"></div>
+      <p class="res" id="gSin"></p>
+    </div>
+  </section>
+
   <section id="v-equipo" hidden>
     <div class="card">
       <h4>Horario</h4>
@@ -103,7 +126,7 @@ td.s{font-weight:600}
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getFirestore,collection,query,where,onSnapshot,getDocs,doc,setDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,query,where,onSnapshot,getDocs,doc,setDoc,deleteDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app=initializeApp({
   apiKey:"AIzaSyCqkijkSqL9OBXpO5OSbfKD4zkpSEBlwsE",authDomain:"registro-ad110.firebaseapp.com",projectId:"registro-ad110",storageBucket:"registro-ad110.firebasestorage.app",messagingSenderId:"586318994815",appId:"1:586318994815:web:f466ab4703944b2fd38e4a"
@@ -134,12 +157,12 @@ function bloque(k,rs,eq="todos"){
   rs=rs.filter(r=>eq==="todos"||r.empleadoId===eq).sort((a,b)=>a.ts.toMillis()-b.ts.toMillis());
   const filas=rs.map((r,j)=>{
     const s=estado(r,k);n[s.c]++;
-    return `<tr><td>${j+1}</td><td>${esc(nombreDe(r))}</td><td>${hora(r.ts.toDate())}</td><td class="s ${s.c}">${s.t}</td><td>${s.sg}${fmt(s.diff)}</td></tr>`;
+    return `<tr><td>${j+1}</td><td>${esc(nombreDe(r))}</td><td>${hora(r.ts.toDate())}</td><td class="s ${s.c}">${s.t}</td><td>${s.sg}${fmt(s.diff)}</td><td><button class="ic" data-del="${r.fecha}_${r.empleadoId}" aria-label="Eliminar registro">🗑️</button></td></tr>`;
   }).join("");
   const vistos=new Set(rs.map(r=>r.empleadoId));
   const falta=CFG.equipo.filter(e=>!vistos.has(e.id)&&(eq==="todos"||e.id===eq));
-  const faltan=falta.map(e=>`<tr><td>–</td><td>${esc(e.nombre)}</td><td>–</td><td class="s f">${i===0?"Pendiente":"Sin registro"}</td><td>–</td></tr>`).join("");
-  const tabla=`<div class="tw"><table><thead><tr><th>#</th><th>Nombre</th><th>Hora</th><th>Estado</th><th>Diferencia</th></tr></thead><tbody>${filas}${faltan}</tbody></table></div>`;
+  const faltan=falta.map(e=>`<tr><td>–</td><td>${esc(e.nombre)}</td><td>–</td><td class="s f">${i===0?"Pendiente":"Sin registro"}</td><td>–</td><td></td></tr>`).join("");
+  const tabla=`<div class="tw"><table><thead><tr><th>#</th><th>Nombre</th><th>Hora</th><th>Estado</th><th>Diferencia</th><th></th></tr></thead><tbody>${filas}${faltan}</tbody></table></div>`;
   const cab=i===0
     ?`<h2>Hoy</h2><div class="sub">${fecha(k)}</div><div class="stats"><div class="stat e"><b>${n.e}</b>Tempranos</div><div class="stat p"><b>${n.p}</b>Puntuales</div><div class="stat r"><b>${n.r}</b>Retardos</div><div class="stat f"><b>${falta.length}</b>Pendientes</div></div>`
     :`<h3>${i===1?"Ayer":i===2?"Anteayer":fecha(k).split(",")[0]}</h3><div class="sub" style="margin-bottom:6px">${fecha(k)}</div><div class="res">${n.e} tempranos · ${n.p} puntuales · ${n.r} retardos · ${falta.length} sin registro</div>`;
@@ -169,15 +192,16 @@ $("menos").onclick=()=>{SHOWN=Math.max(0,SHOWN-3);escucha()};
 $("tabs").onclick=e=>{
   const b=e.target.closest("button");if(!b)return;
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
-  ["hoy","buscar","equipo"].forEach(v=>$("v-"+v).hidden=v!==b.dataset.v);
+  ["hoy","buscar","grafica","equipo"].forEach(v=>$("v-"+v).hidden=v!==b.dataset.v);
   scrollTo({top:0});
+  if(b.dataset.v==="grafica")grafica();
 };
 $("up").onclick=()=>scrollTo({top:0,behavior:"smooth"});
 addEventListener("scroll",()=>$("up").classList.toggle("show",scrollY>350),{passive:true});
 
 /* ---------- Buscar ---------- */
 const sumDias=(k,n)=>{const d=new Date(k+"T12:00:00");d.setDate(d.getDate()+n);return d.toLocaleDateString("sv")};
-document.querySelector(".chips").onclick=e=>{
+document.querySelector("#v-buscar .chips").onclick=e=>{
   const r=e.target.dataset.r;if(!r)return;
   const h=key(0);
   if(r==="hoy")$("sD").value=$("sH").value=h;
@@ -255,6 +279,44 @@ onSnapshot(CONF,s=>{
   }
   formH();pintaEq();llenaSel();pinta();
 });
+/* ---------- Eliminar registro ---------- */
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-del]");if(!b)return;
+  if(!confirm("¿Eliminar este registro? No se puede deshacer."))return;
+  try{await deleteDoc(doc(db,"registros",b.dataset.del));if(!$("v-buscar").hidden)buscar()}
+  catch(err){alert("No se pudo eliminar el registro.")}
+});
+
+/* ---------- Gráfica comparativa ---------- */
+let gN=7;
+$("gC").onclick=e=>{
+  const n=+e.target.dataset.n;if(!n)return;
+  gN=n;$("gC").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===e.target));grafica();
+};
+async function grafica(){
+  $("gMsg").textContent="Cargando…";
+  try{
+    const s=await getDocs(query(collection(db,"registros"),where("fecha",">=",key(gN-1))));
+    const rs=s.docs.map(x=>x.data()).filter(r=>r.ts);
+    const filas=CFG.equipo.map(e=>{
+      const m=rs.filter(r=>r.empleadoId===e.id);
+      return {e,n:m.length,avg:m.length?m.reduce((a,r)=>a+estado(r,r.fecha).diff,0)/m.length:0};
+    });
+    const con=filas.filter(f=>f.n).sort((a,b)=>a.avg-b.avg);
+    const max=Math.max(600,...con.map(f=>Math.abs(f.avg)));
+    const base=new Date("2000-01-01T"+CFG.hora+":00");
+    $("gLeg").innerHTML=`<span>← Antes</span><span>Hora de entrada: ${hora(base).replace(/:\d\d /," ")}</span><span>Después →</span>`;
+    $("gBars").innerHTML=con.map(f=>{
+      const w=Math.max(1.5,Math.abs(f.avg)/max*50),c=f.avg<0?"e":f.avg<=CFG.tol*60?"p":"r";
+      const left=f.avg<0?50-w:50,prom=hora(new Date(base.getTime()+f.avg*1000));
+      return `<div class="gr"><div class="gn">${esc(f.e.nombre)}</div><div class="gt"><i class="ax"></i><div class="gb ${c}" style="left:${left}%;width:${w}%"></div></div><div class="gv">${prom}<small>${f.avg<0?"−":"+"}${fmt(Math.round(f.avg))} · ${f.n} ${f.n===1?"día":"días"}</small></div></div>`;
+    }).join("")||`<p class="res">Todavía no hay registros en este periodo.</p>`;
+    const sin=filas.filter(f=>!f.n).map(f=>f.e.nombre);
+    $("gSin").textContent=sin.length?"Sin registros: "+sin.join(", "):"";
+    $("gMsg").textContent=gN===1?"Llegada de hoy, ordenada de más temprano a más tarde.":`Promedio de los últimos ${gN} días, de más temprano a más tarde.`;
+  }catch(e){$("gMsg").textContent="No se pudo cargar la gráfica."}
+}
+
 $("sD").value=$("sH").value="";
 escucha();
 </script>
