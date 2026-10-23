@@ -47,23 +47,49 @@ td.s{font-weight:600}
     <table><thead><tr><th>#</th><th>Nombre</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Diferencia</th></tr></thead><tbody id="tb"></tbody></table>
   </div>
 
+  <h2>Configuración</h2>
+  <div class="card" id="cfg">
+    <div class="row">
+      <label>Hora de entrada <input id="cHora" type="time" value="16:00"></label>
+      <label>Tolerancia (min) <input id="cTol" type="number" min="0" value="10" style="width:80px"></label>
+    </div>
+    <p style="color:var(--mut);margin:12px 0 6px;font-size:14px">Nombres</p>
+    <div class="row" id="cn"></div>
+    <div class="row" style="margin-top:12px"><button id="cGuardar">Guardar cambios</button><span id="cMsg" class="p"></span></div>
+    <p style="color:var(--mut);font-size:13px;margin:10px 0 0">El nuevo horario se aplica también a los días anteriores al consultarlos.</p>
+  </div>
 </div>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getFirestore,collection,query,where,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,query,where,onSnapshot,doc,setDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app=initializeApp({
   apiKey:"AIzaSyCqkijkSqL9OBXpO5OSbfKD4zkpSEBlwsE",authDomain:"registro-ad110.firebaseapp.com",projectId:"registro-ad110",storageBucket:"registro-ad110.firebasestorage.app",messagingSenderId:"586318994815",appId:"1:586318994815:web:f466ab4703944b2fd38e4a"
 });
 const db=getFirestore(app);
 const $=id=>document.getElementById(id);
-// Horario de cada trabajador (edítalo aquí)
-const EMPS={axel:{nombre:"Axel"},dani:{nombre:"Dani"},liz:{nombre:"Liz"},eric:{nombre:"Eric"},alan:{nombre:"Alan"}};
-const HORA_ENTRADA="09:00",TOLERANCIA_MIN=10;
+const IDS=["axel","dani","liz","eric","alan"];
+let CFG={hora:"16:00",tol:10,nombres:{axel:"Axel",dani:"Dani",liz:"Liz",eric:"Eric",alan:"Alan"}};
 let regs=[],unsubR=null;
 
 $("dia").value=new Date().toLocaleDateString("sv");
+$("cn").innerHTML=IDS.map(id=>`<input data-id="${id}" maxlength="20" aria-label="Nombre">`).join("");
+function formCfg(){
+  if($("cfg").contains(document.activeElement))return;
+  $("cHora").value=CFG.hora;$("cTol").value=CFG.tol;
+  $("cn").querySelectorAll("input").forEach(i=>i.value=CFG.nombres[i.dataset.id]);
+}
+onSnapshot(doc(db,"config","horario"),s=>{
+  if(s.exists()){const d=s.data();CFG={hora:d.hora||CFG.hora,tol:d.tol??CFG.tol,nombres:{...CFG.nombres,...d.nombres}}}
+  formCfg();pinta();
+});
+$("cGuardar").onclick=async()=>{
+  const nombres={};$("cn").querySelectorAll("input").forEach(i=>nombres[i.dataset.id]=i.value.trim()||CFG.nombres[i.dataset.id]);
+  try{await setDoc(doc(db,"config","horario"),{hora:$("cHora").value||"16:00",tol:Math.max(0,+$("cTol").value||0),nombres});
+    $("cMsg").textContent="Guardado";}catch(e){$("cMsg").textContent="No se pudo guardar"}
+  setTimeout(()=>$("cMsg").textContent="",3000);
+};
 escuchaDia();
 $("dia").onchange=escuchaDia;
 
@@ -80,16 +106,16 @@ const fmt=s=>{const a=Math.abs(s),m=Math.floor(a/60),r=a%60;return (m?m+" min ":
 function pinta(){
   const dia=$("dia").value;let nE=0,nP=0,nR=0;
   $("tb").innerHTML=regs.map((r,i)=>{
-    const diff=Math.round((r.ts.toMillis()-new Date(dia+"T"+HORA_ENTRADA+":00").getTime())/1000);
+    const diff=Math.round((r.ts.toMillis()-new Date(dia+"T"+CFG.hora+":00").getTime())/1000);
     let c,t,sg;
     if(diff<0){c="e";t="Temprano";sg="−";nE++}
-    else if(diff<=TOLERANCIA_MIN*60){c="p";t="Puntual";sg="+";nP++}
+    else if(diff<=CFG.tol*60){c="p";t="Puntual";sg="+";nP++}
     else{c="r";t="Retardo";sg="+";nR++}
     const d=r.ts.toDate();
-    return `<tr><td>${i+1}</td><td>${esc(r.nombre)}</td><td>${d.toLocaleDateString("es-MX")}</td><td>${d.toLocaleTimeString("es-MX",{hour12:false})}</td><td class="s ${c}">${t}</td><td>${sg}${fmt(diff)}</td></tr>`;
+    return `<tr><td>${i+1}</td><td>${esc(CFG.nombres[r.empleadoId]||r.nombre)}</td><td>${d.toLocaleDateString("es-MX")}</td><td>${d.toLocaleTimeString("es-MX",{hour12:true})}</td><td class="s ${c}">${t}</td><td>${sg}${fmt(diff)}</td></tr>`;
   }).join("");
   const vistos=new Set(regs.map(r=>r.empleadoId));
-  const faltan=Object.entries(EMPS).filter(([id])=>!vistos.has(id));
+  const faltan=IDS.filter(id=>!vistos.has(id)).map(id=>[id,{nombre:CFG.nombres[id]}]);
   $("tb").innerHTML+=faltan.map(([id,e])=>`<tr><td>–</td><td>${e.nombre}</td><td>–</td><td>–</td><td class="s f">Sin registro</td><td>–</td></tr>`).join("");
   $("nE").textContent=nE;$("nP").textContent=nP;$("nR").textContent=nR;$("nF").textContent=faltan.length;
 }

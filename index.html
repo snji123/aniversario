@@ -39,7 +39,7 @@ const db=getFirestore(app);
 const EQUIPO=[["axel","Axel"],["dani","Dani"],["liz","Liz"],["eric","Eric"],["alan","Alan"]];
 const $=id=>document.getElementById(id);
 const fechaLocal=()=>new Date().toLocaleDateString("sv");
-const hms=d=>d.toLocaleTimeString("es-MX",{hour12:false});
+const hms=d=>d.toLocaleTimeString("es-MX",{hour12:true});
 
 function reloj(){
   const d=new Date();
@@ -49,7 +49,7 @@ function reloj(){
 setInterval(reloj,1000);reloj();
 
 $("lista").innerHTML=EQUIPO.map(([id,n])=>
-  `<div class="row"><div><div class="n">${n}</div><div class="h" id="h-${id}"></div></div><button id="b-${id}" disabled>Registrar</button></div>`).join("");
+  `<div class="row"><div><div class="n" id="n-${id}">${n}</div><div class="h" id="h-${id}"></div></div><button id="b-${id}" disabled>Registrar</button></div>`).join("");
 
 function marca(id,ts){
   $("h-"+id).textContent="Entrada a las "+hms(ts.toDate());
@@ -57,6 +57,8 @@ function marca(id,ts){
 }
 
 (async()=>{
+  try{const c=await getDoc(doc(db,"config","horario"));
+    if(c.exists()&&c.data().nombres)for(const [id] of EQUIPO){const n=c.data().nombres[id];if(n)$("n-"+id).textContent=n}}catch(e){}
   for(const [id] of EQUIPO){
     const s=await getDoc(doc(db,"registros",fechaLocal()+"_"+id));
     if(s.exists()&&s.data().ts)marca(id,s.data().ts);
@@ -68,7 +70,7 @@ async function registrar(id,b){
   b.disabled=true;$("msg").textContent="";
   try{
     const f=fechaLocal(),ref=doc(db,"registros",f+"_"+id);
-    await setDoc(ref,{empleadoId:id,nombre:EQUIPO.find(e=>e[0]===id)[1],fecha:f,ts:serverTimestamp()});
+    await setDoc(ref,{empleadoId:id,nombre:$("n-"+id).textContent,fecha:f,ts:serverTimestamp()});
     marca(id,(await getDoc(ref)).data().ts);
   }catch(e){b.disabled=false;$("msg").textContent="No se pudo registrar. Intenta de nuevo"}
 }
