@@ -36,10 +36,12 @@ const app=initializeApp({
   apiKey:"AIzaSyCqkijkSqL9OBXpO5OSbfKD4zkpSEBlwsE",authDomain:"registro-ad110.firebaseapp.com",projectId:"registro-ad110",storageBucket:"registro-ad110.firebasestorage.app",messagingSenderId:"586318994815",appId:"1:586318994815:web:f466ab4703944b2fd38e4a"
 });
 const db=getFirestore(app);
-const EQUIPO=[["axel","Axel"],["dani","Dani"],["liz","Liz"],["eric","Eric"],["alan","Alan"]];
+const DEF=[["axel","Axel"],["dani","Dani"],["liz","Liz"],["eric","Eric"],["alan","Alan"]].map(([id,nombre])=>({id,nombre}));
 const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fechaLocal=()=>new Date().toLocaleDateString("sv");
 const hms=d=>d.toLocaleTimeString("es-MX",{hour12:true});
+let EQ=DEF;
 
 function reloj(){
   const d=new Date();
@@ -48,31 +50,36 @@ function reloj(){
 }
 setInterval(reloj,1000);reloj();
 
-$("lista").innerHTML=EQUIPO.map(([id,n])=>
-  `<div class="row"><div><div class="n" id="n-${id}">${n}</div><div class="h" id="h-${id}"></div></div><button id="b-${id}" disabled>Registrar</button></div>`).join("");
-
 function marca(id,ts){
   $("h-"+id).textContent="Entrada a las "+hms(ts.toDate());
   const b=$("b-"+id);b.textContent="Registrado";b.disabled=true;
 }
 
 (async()=>{
-  try{const c=await getDoc(doc(db,"config","horario"));
-    if(c.exists()&&c.data().nombres)for(const [id] of EQUIPO){const n=c.data().nombres[id];if(n)$("n-"+id).textContent=n}}catch(e){}
-  for(const [id] of EQUIPO){
-    const s=await getDoc(doc(db,"registros",fechaLocal()+"_"+id));
-    if(s.exists()&&s.data().ts)marca(id,s.data().ts);
-    else{const b=$("b-"+id);b.disabled=false;b.onclick=()=>registrar(id,b)}
+  try{
+    const c=await getDoc(doc(db,"config","horario"));
+    if(c.exists()){
+      const d=c.data();
+      if(Array.isArray(d.equipo))EQ=d.equipo;
+      else if(d.nombres)EQ=DEF.map(x=>({id:x.id,nombre:d.nombres[x.id]||x.nombre}));
+    }
+  }catch(e){}
+  $("lista").innerHTML=EQ.map(e=>
+    `<div class="row"><div><div class="n">${esc(e.nombre)}</div><div class="h" id="h-${e.id}"></div></div><button id="b-${e.id}" disabled>Registrar</button></div>`).join("");
+  for(const e of EQ){
+    const s=await getDoc(doc(db,"registros",fechaLocal()+"_"+e.id));
+    if(s.exists()&&s.data().ts)marca(e.id,s.data().ts);
+    else{const b=$("b-"+e.id);b.disabled=false;b.onclick=()=>registrar(e,b)}
   }
 })().catch(()=>$("msg").textContent="No hay conexión con el servidor");
 
-async function registrar(id,b){
+async function registrar(e,b){
   b.disabled=true;$("msg").textContent="";
   try{
-    const f=fechaLocal(),ref=doc(db,"registros",f+"_"+id);
-    await setDoc(ref,{empleadoId:id,nombre:$("n-"+id).textContent,fecha:f,ts:serverTimestamp()});
-    marca(id,(await getDoc(ref)).data().ts);
-  }catch(e){b.disabled=false;$("msg").textContent="No se pudo registrar. Intenta de nuevo"}
+    const f=fechaLocal(),ref=doc(db,"registros",f+"_"+e.id);
+    await setDoc(ref,{empleadoId:e.id,nombre:e.nombre,fecha:f,ts:serverTimestamp()});
+    marca(e.id,(await getDoc(ref)).data().ts);
+  }catch(err){b.disabled=false;$("msg").textContent="No se pudo registrar. Intenta de nuevo"}
 }
 </script>
 </body>
